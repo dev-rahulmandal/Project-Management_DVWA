@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VulnForge manifest entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id", "title", "class", "cwe", "owasp", "tier", "origin",
+    "endpoint", "severity", "auth", "deterministic", "intentional"
+  ],
+  "properties": {
+    "id":            { "type": "string", "pattern": "^[A-Z0-9]+(-[A-Z0-9]+)+$" },
+    "title":         { "type": "string", "minLength": 1 },
+    "class":         { "type": "string", "minLength": 1 },
+    "cwe":           { "type": "string", "pattern": "^CWE-[0-9]+$" },
+    "owasp":         { "type": "string", "minLength": 1 },
+    "tier":          { "type": "integer", "enum": [1, 2] },
+    "origin":        { "type": "string", "enum": ["web", "api"] },
+    "endpoint":      { "type": "string", "minLength": 1 },
+    "severity":      { "type": "string", "enum": ["Info", "Low", "Medium", "High", "Critical"] },
+    "auth":          { "type": "string", "enum": ["none", "user", "cross-tenant", "admin"] },
+    "detector":      { "type": "string" },
+    "verification":  { "type": "string", "enum": ["auto", "manual"] },
+    "prerequisite":  { "type": "string", "comment": "id of a vuln that must be exploited first (chained challenge)" },
+    "chain":         { "type": "string", "comment": "kill-chain id this vuln is a link of (Phase C); links share a chain id and an end-to-end chain test proves the full path" },
+    "defense":       { "type": "string", "comment": "a real defensive layer the exploit must DEFEAT (Phase C), e.g. keyword-waf - the naive payload is blocked; only a bypass fires" },
+    "decoy":         { "type": "boolean", "comment": "true = a look-vulnerable-but-correctly-secured endpoint (Phase C C4 red herring); intentional:false, has a holds-test proving the bait attack fails" },
+    "gating":        { "type": "string", "comment": "how the vulnerable-vs-secure behavior is selected on the SAME route (e.g. VF_HARDENED, or a Phase-C state condition) - replaces -vuln/-SAFE route tells" },
+    "deterministic": { "type": "boolean" },
+    "secured_twin":  { "type": ["string", "null"] },
+    "intentional":   { "type": "boolean" },
+    "repro":         { "type": "string" }
+  },
+  "allOf": [
+    {
+      "comment": "Intentional vulns must declare the detector that should catch them and a repro.",
+      "if":   { "properties": { "intentional": { "const": true } } },
+      "then": { "required": ["detector", "repro"] }
+    }
+  ]
+}

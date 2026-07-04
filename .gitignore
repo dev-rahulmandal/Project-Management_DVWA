@@ -1,0 +1,85 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+*node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+coverage/
+
+# next.js (app lives in web/, so these must NOT be root-anchored)
+.next/
+out/
+
+# production
+build/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# editors
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# logs
+*.log
+
+# Python (api + test harness)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Runtime SQLite DB - generated, reseeded on boot; never commit. Broadened to
+# cover the dev db, any temp/verify dbs (vulnforge_verify.db, vf*.db,
+# vulnforge_challenge_check.db, ...) and their -wal / -shm / -journal sidecars.
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Uploaded attachments (runtime artifacts)
+/uploads/
+
+# Internal audit / roadmap / working notes - local only, NEVER pushed.
+*.internal.md
+
+# --- v1: dev-phase verification scaffolding (kept locally, not shipped) -------
+# These are the throwaway test harness - the app + the ground-truth manifest
+# answer-key are what ship. tools/challenge_check.py is intentionally KEPT (it's
+# a deploy tool that proves the challenge face leaks no signal).
+/tests/
+/tools/verify.py
+/requirements-dev.txt
