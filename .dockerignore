@@ -1,0 +1,42 @@
+# Keep the build context small and local/secret state out of the images.
+
+# Dependencies + build output (reinstalled/rebuilt inside the image)
+**/node_modules
+**/.next
+**/out
+**/.venv
+**/venv
+
+# Python caches
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/*.egg-info
+
+# Local env files (fake values, but never bake local state into an image)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Local database + uploads (the API reseeds SQLite on first boot)
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+uploads/
+
+# Dev-only / internal (not part of the shipped app)
+tests/
+tools/
+scoring/
+*.internal.md
+
+# VCS + editor + OS noise
+.git
+.gitignore
+.github
+.vscode/
+.idea/
+**/*.log
+.DS_Store
+Thumbs.db

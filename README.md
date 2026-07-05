@@ -52,6 +52,20 @@ On first run `run.py` installs the Python and web dependencies and seeds the loc
 
 Open http://localhost:8082 and sign in with a seeded account below. Press Ctrl-C to stop both servers. To run the hardened **challenge face** (no answer-key signal), use `python run.py --challenge`.
 
+### Run with Docker
+
+Prefer containers? With [Docker](https://docs.docker.com/get-docker/) and the Compose v2 plugin, one command builds and runs the whole system - no Python or Node needed on the host:
+
+```sh
+git clone https://github.com/dev-rahulmandal/Project-Management_DVWA.git
+cd Project-Management_DVWA
+docker compose up --build
+```
+
+Open http://localhost:8082, then press Ctrl-C to stop and run `docker compose down` to remove the containers. The SQLite database is seeded fresh inside the container on every run - it is intentionally ephemeral, so each `up` starts from a clean, deterministic answer key. Ports publish to `127.0.0.1` only.
+
+> On Debian/Kali the `docker.io` engine ships without Compose. If `docker compose` reports an unknown command, install the plugin per [Docker's install docs](https://docs.docker.com/compose/install/linux/) - the manual binary drop-in into `/usr/local/lib/docker/cli-plugins/` is the most reliable method.
+
 <details>
 <summary>Manual setup (without the launcher)</summary>
 

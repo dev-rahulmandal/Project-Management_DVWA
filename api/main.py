@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,9 +55,28 @@ from .routes.vulns.bruteforce import router as bruteforce_router
 from .routes.telemetry import router as telemetry_router
 
 
+def _print_startup_banner() -> None:
+    if os.getenv("PROLANE_NO_BANNER"):
+        return
+    from .banner import render_banner
+    if os.getenv("PROLANE_RUNTIME") == "docker":
+        runtime = "Docker (production build)"
+        stop = "Ctrl-C   (then: docker compose down)"
+    else:
+        runtime = "Server (uvicorn)"
+        stop = "Ctrl-C"
+    web_url = config.WEB_ORIGINS[0] if config.WEB_ORIGINS else "http://localhost:8082"
+    api_url = "http://localhost:%d" % config.PORT
+    print(
+        render_banner(config.VF_LAB, config.VF_HARDENED, runtime, web_url, api_url, stop),
+        flush=True,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    _print_startup_banner()
     yield
 
 
