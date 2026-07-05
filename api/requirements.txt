@@ -1,6 +1,7 @@
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 python-jose[cryptography]>=3.3.0
+PyJWT>=2.8.0           # standalone HS256 verify for the integrations token endpoint
 bcrypt>=4.1.0
 aiosqlite>=0.20.0
 python-dotenv>=1.0.0

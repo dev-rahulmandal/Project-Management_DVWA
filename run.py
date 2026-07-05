@@ -31,7 +31,7 @@ WEB = ROOT / "web"
 REQ = ROOT / "api" / "requirements.txt"
 API_PORT, WEB_PORT = 8081, 8082
 IS_WIN = os.name == "nt"
-CANARY = ["uvicorn", "fastapi", "jose", "bcrypt", "aiosqlite", "httpx", "jinja2", "dotenv", "multipart"]
+CANARY = ["uvicorn", "fastapi", "jose", "jwt", "bcrypt", "aiosqlite", "httpx", "jinja2", "dotenv", "multipart"]
 
 
 def die(msg: str) -> None:
