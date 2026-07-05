@@ -150,6 +150,7 @@ def main() -> None:
     seed_env()
 
     env = dict(os.environ)
+    env["PROLANE_NO_BANNER"] = "1"
     if args.challenge:
         env["VF_LAB"] = "0"
     face = "CHALLENGE" if args.challenge else "LAB"
@@ -163,6 +164,15 @@ def main() -> None:
         api_cmd.append("--reload")
 
     print("[prolane] starting %s:  api http://localhost:%d   web http://localhost:%d" % (face, API_PORT, WEB_PORT))
+
+    sys.path.insert(0, str(ROOT))
+    from api.banner import render_banner
+    _lab = not args.challenge
+    _runtime = "Local dev via run.py (hot-reload)" if _lab else "Local via run.py (challenge face)"
+    print(render_banner(
+        _lab, env.get("VF_HARDENED", "0") == "1", _runtime,
+        "http://localhost:%d" % WEB_PORT, "http://localhost:%d" % API_PORT, "Ctrl-C"), flush=True)
+
     flags = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WIN else {"start_new_session": True}
     try:
         procs = [

@@ -25,6 +25,7 @@ services:
       WEB_ORIGIN: http://localhost:8082
       VF_LAB: "1"
       VF_HARDENED: "0"
+      PROLANE_RUNTIME: docker
     ports:
       - "127.0.0.1:8081:8081"
 
