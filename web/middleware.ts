@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest, NextFetchEvent } from 'next/server'
 import { getSessionUser } from './lib/session'
 
-const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? 'http://api.prolane.test:8081'
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? 'http://localhost:8081'
 const REPORT_ENDPOINT = `${API_ORIGIN}/api/telemetry/csp`
 const INTERNAL_API = process.env.INTERNAL_API_ORIGIN ?? 'http://localhost:8081'
 const CLIENT_EVENT_ENDPOINT = `${INTERNAL_API}/api/telemetry/client`

@@ -37,13 +37,36 @@ Python 3.11+, FastAPI, Next.js 14 (App Router, TypeScript), SQLite (deterministi
 
 ## Quickstart
 
+Requires **Python 3.11+** and **Node.js 18.17+**. One cross-platform command installs everything and runs both servers (on macOS/Linux use `python3` if `python` is missing):
+
+```sh
+git clone https://github.com/dev-rahulmandal/Project-Management_DVWA.git
+cd Project-Management_DVWA
+python run.py
+```
+
+On first run `run.py` installs the Python and web dependencies and seeds the local `.env` files, then starts:
+
+- **api** (FastAPI) on http://localhost:8081
+- **web** (Next.js) on http://localhost:8082
+
+Open http://localhost:8082 and sign in with a seeded account below. Press Ctrl-C to stop both servers. To run the hardened **challenge face** (no answer-key signal), use `python run.py --challenge`.
+
+<details>
+<summary>Manual setup (without the launcher)</summary>
+
 ```sh
 pip install -r api/requirements.txt
 cd web && npm install && cd ..
+cp api/.env.example api/.env
+cp web/.env.example web/.env.local
 
-make dev-api      # or: python -m uvicorn api.main:app --port 8081 --reload   -> api on http://localhost:8081
-make dev-web      # or: cd web && npm run dev                                 -> web on http://localhost:8082
+python -m uvicorn api.main:app --port 8081 --reload   # api -> http://localhost:8081
+cd web && npm run dev                                  # web -> http://localhost:8082
 ```
+</details>
+
+> **Optional (realistic pentest setup):** to let a proxy like Burp observe api traffic (browsers bypass the proxy for localhost), set `NEXT_PUBLIC_API_ORIGIN=http://api.prolane.test:8081` in `web/.env.local` and add `127.0.0.1  prolane.test api.prolane.test` to your hosts file.
 
 ## Seeded accounts
 
@@ -51,11 +74,11 @@ Two tenants plus a super-admin enable cross-tenant and broken-access-control bug
 
 | Email | Tenant | Role |
 | --- | --- | --- |
-| alice@acme.test | Acme | Owner |
-| charlie@acme.test | Acme | Member |
-| bob@globex.test | Globex | Owner |
-| diana@globex.test | Globex | Member |
-| superadmin@vulnforge.internal | - | Super-admin |
+| alice@northwind.test | Northwind Systems | Owner |
+| charlie@northwind.test | Northwind Systems | Member |
+| bob@bluepeak.test | Bluepeak Labs | Owner |
+| diana@bluepeak.test | Bluepeak Labs | Member |
+| marcus.webb@northwind.test | Northwind Systems | Owner + Super-admin |
 
 ## Reporting
 

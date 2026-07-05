@@ -45,11 +45,9 @@ venv/
 /tests/
 /tools/verify.py
 /requirements-dev.txt
-.pre-commit/                 # Temporary cache
-.git/                        # Git internals (auto-ignored)
-__pycache__/                 # Python cache
-*.pyc                        # Compiled Python
-.venv/                       # Virtual environment
-node_modules/                # NPM packages
-.env                         # Local secrets
-.env.local                   # Local secrets
+
+# Pre-commit / git hooks (local tooling; never pushed)
+.pre-commit/
+.pre-commit-config.yaml
+.pre-commit-config.yml
+.husky/
