@@ -62,7 +62,7 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
     return res
   }
 
-  if (pathname.startsWith('/secure/') && process.env.VF_LAB === '0') {
+  if (pathname.startsWith('/secure/') && process.env.VF_LAB !== '1') {
     return new NextResponse(null, { status: 404 })
   }
 

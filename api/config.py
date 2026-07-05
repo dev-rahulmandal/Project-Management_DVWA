@@ -29,7 +29,7 @@ class _Config:
     PORT: int = int(os.getenv("API_PORT", "8081"))
 
     VF_HARDENED: bool = os.getenv("VF_HARDENED", "0") == "1"
-    VF_LAB: bool = os.getenv("VF_LAB", "1") == "1"
+    VF_LAB: bool = os.getenv("VF_LAB", "0") == "1"
 
     VF_SCORING: bool = os.getenv("VF_SCORING", "1") == "1"
 

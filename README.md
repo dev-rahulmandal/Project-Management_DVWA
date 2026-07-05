@@ -50,7 +50,7 @@ On first run `run.py` installs the Python and web dependencies and seeds the loc
 - **api** (FastAPI) on http://localhost:8081
 - **web** (Next.js) on http://localhost:8082
 
-Open http://localhost:8082 and sign in with a seeded account below. Press Ctrl-C to stop both servers. To run the hardened **challenge face** (no answer-key signal), use `python run.py --challenge`.
+Open http://localhost:8082 and sign in with a seeded account below. Press Ctrl-C to stop both servers. `python run.py` runs the realistic default face; add `python run.py --lab` for the development/lab mode (the in-app secured comparisons and the API docs).
 
 ### Run with Docker
 
