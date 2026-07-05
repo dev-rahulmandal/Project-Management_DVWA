@@ -1,0 +1,4 @@
+# Deps for the SEPARATE scoring harness (viewer + store). Not part of the app.
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pyyaml>=6.0
