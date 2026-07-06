@@ -7,25 +7,11 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from ..auth import require_auth
-from ..config import config
 from ..db import get_db
 from ..hardening import hardened
 
 router = APIRouter()
 _bearer = HTTPBearer()
-
-try:
-    from scoring.store import record_solve as _record_solve
-except Exception:
-    _record_solve = None
-
-
-def _solve(vuln_id: str) -> None:
-    if config.VF_SCORING and _record_solve is not None:
-        try:
-            _record_solve(vuln_id, {"surface": "http-hook"})
-        except Exception:
-            pass
 
 
 ALLOWED_SCOPES = {
@@ -144,6 +130,4 @@ async def pat_create_project(
         (user["org_id"], name, body.description, user["id"]),
     )
     await db.commit()
-    if scope_confused:
-        _solve("API-SCOPE-001")
     return {"project": {"id": cur.lastrowid, "name": name}}

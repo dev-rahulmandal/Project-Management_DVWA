@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import config
 from .db import init_db
-from .detection.middleware import detection_middleware
 from .routes.me import router as me_router
 from .routes.internal import router as internal_router
 from .routes.projects import router as projects_router
@@ -52,7 +51,6 @@ from .routes.vulns.cmdi import router as cmdi_router
 from .routes.vulns.pathtraversal import router as pathtraversal_router
 from .routes.vulns.cors import router as cors_router
 from .routes.vulns.bruteforce import router as bruteforce_router
-from .routes.telemetry import router as telemetry_router
 
 
 def _print_startup_banner() -> None:
@@ -100,8 +98,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.middleware("http")(detection_middleware)
 
 
 @app.get("/health")
@@ -156,4 +152,3 @@ app.include_router(cmdi_router)
 app.include_router(pathtraversal_router)
 app.include_router(cors_router)
 app.include_router(bruteforce_router)
-app.include_router(telemetry_router)

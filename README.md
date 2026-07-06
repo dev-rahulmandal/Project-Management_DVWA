@@ -17,7 +17,7 @@ Project Management DVWA is a **deliberately vulnerable web application** and **v
 
 It ships as **two distinct origins on purpose**: a `web` origin (Next.js 14, App Router, TypeScript) on `http://localhost:8082` that issues an httpOnly session cookie, and an `api` origin (FastAPI, Python) on `http://localhost:8081` that authenticates with a Bearer JWT. The browser logs into `web`, then exchanges its session cookie for an `api` Bearer token - a cookie-to-Bearer bridge across two hosts, exactly the kind of surface a real IDOR, BOLA, SSRF, or JWT bug lives on.
 
-Every one of the 40+ catalogued vulnerabilities is paired with a secured "twin" and a self-test that proves it fires. A machine-readable ground-truth manifest is the answer key, so it doubles as a measurable regression target for scanners and pentest automation.
+Every catalogued vulnerability is paired with a secured "twin" as a negative control. The catalog is maintained against a machine-readable ground-truth manifest - an answer key that also serves as a regression fixture for scanners and pentest automation - which is kept out of the public repo so it does not spoil the exercise.
 
 ## Vulnerability coverage
 
@@ -96,7 +96,7 @@ Two tenants plus a super-admin enable cross-tenant and broken-access-control bug
 
 ## Reporting
 
-The vulnerabilities in this project are **intentional** - please do not report them as security issues. If you find a real bug in the test harness or the ground-truth manifest, see [SECURITY.md](SECURITY.md).
+The vulnerabilities in this project are **intentional** - please do not report them as security issues. If you find a genuine bug in the app scaffolding, the launcher, or the docs (not one of the intended vulnerabilities), see [SECURITY.md](SECURITY.md).
 
 ## License
 

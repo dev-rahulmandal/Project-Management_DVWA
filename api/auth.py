@@ -38,7 +38,6 @@ async def get_current_user(
     if not user.get("is_active", 1):
         raise HTTPException(status_code=403, detail="account_disabled")
 
-    request.state.user = user
     return user
 
 

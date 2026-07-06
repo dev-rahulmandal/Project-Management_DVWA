@@ -1,8 +1,8 @@
-# Line-ending policy for VulnForge.
+# Line-ending policy for Prolane.
 # Force LF in the repo AND the working copy for all text files, regardless of
-# anyone's local core.autocrlf. This keeps the Makefile and shell scripts
-# Linux/Docker-safe and silences the "LF will be replaced by CRLF" warnings on
-# Windows.
+# anyone's local core.autocrlf. This keeps run.py, the Dockerfiles, and the rest
+# of the tree Linux/Docker-safe and silences the "LF will be replaced by CRLF"
+# warnings on Windows.
 * text=auto eol=lf
 
 # Windows batch files must keep CRLF to run correctly.

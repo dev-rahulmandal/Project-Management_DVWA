@@ -19,19 +19,6 @@ router = APIRouter()
 CODE_TTL = 300
 TOKEN_TTL = 3600
 
-try:
-    from scoring.store import record_solve as _record_solve
-except Exception:
-    _record_solve = None
-
-
-def _solve(vuln_id: str) -> None:
-    if config.VF_SCORING and _record_solve is not None:
-        try:
-            _record_solve(vuln_id, {"surface": "http-hook"})
-        except Exception:
-            pass
-
 
 def _b64url(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
@@ -78,8 +65,6 @@ async def authorize(
         ok = body.redirectUri in allowed
     else:
         ok = any(a in body.redirectUri for a in allowed)
-        if ok and body.redirectUri not in allowed:
-            _solve("AUTH-OAUTH-REDIR-001")
     if not ok:
         raise HTTPException(status_code=400, detail="invalid_redirect_uri")
 
@@ -134,9 +119,6 @@ async def token(
             if not body.codeVerifier or not _verify_pkce(
                     body.codeVerifier, row["code_challenge"], row["code_challenge_method"]):
                 raise HTTPException(status_code=400, detail="invalid_pkce")
-        elif not body.codeVerifier or not _verify_pkce(
-                body.codeVerifier, row["code_challenge"], row["code_challenge_method"]):
-            _solve("AUTH-OAUTH-PKCE-001")
     elif body.clientSecret != client["client_secret"]:
         raise HTTPException(status_code=401, detail="invalid_client_secret")
 

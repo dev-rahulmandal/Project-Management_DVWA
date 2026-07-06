@@ -31,7 +31,5 @@ class _Config:
     VF_HARDENED: bool = os.getenv("VF_HARDENED", "0") == "1"
     VF_LAB: bool = os.getenv("VF_LAB", "0") == "1"
 
-    VF_SCORING: bool = os.getenv("VF_SCORING", "1") == "1"
-
 
 config = _Config()
