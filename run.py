@@ -1,8 +1,8 @@
 """Prolane launcher - one cross-platform command to install and run.
 
 Usage:
-    python run.py               start the lab   (api :8081 + web :8082)
-    python run.py --challenge   start the challenge face (no answer-key signal)
+    python run.py               start the challenge face (realistic target, no answer-key signal)
+    python run.py --lab         start the lab face (answer-key signals, secure twins, /docs open)
 
 On first run it installs the Python and web dependencies and seeds the local
 .env files from the checked-in examples. Ctrl-C stops both servers.
@@ -142,7 +142,8 @@ def free_port(port: int) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Prolane launcher")
-    ap.add_argument("--challenge", action="store_true", help="run the challenge face (VF_LAB=0, no answer-key signal)")
+    ap.add_argument("--lab", "--dev", dest="lab", action="store_true",
+                    help="run the lab face (VF_LAB=1: answer-key signals, secure twins, /docs). Default is the challenge face.")
     args = ap.parse_args()
 
     api_py = ensure_python()
@@ -151,26 +152,24 @@ def main() -> None:
 
     env = dict(os.environ)
     env["PROLANE_NO_BANNER"] = "1"
-    if args.challenge:
-        env["VF_LAB"] = "0"
-    face = "CHALLENGE" if args.challenge else "LAB"
+    env["VF_LAB"] = "1" if args.lab else "0"
+    face = "LAB" if args.lab else "CHALLENGE"
 
     print("[prolane] freeing ports %d/%d if in use..." % (API_PORT, WEB_PORT))
     free_port(API_PORT)
     free_port(WEB_PORT)
 
     api_cmd = [api_py, "-m", "uvicorn", "api.main:app", "--port", str(API_PORT)]
-    if not args.challenge:
+    if args.lab:
         api_cmd.append("--reload")
 
     print("[prolane] starting %s:  api http://localhost:%d   web http://localhost:%d" % (face, API_PORT, WEB_PORT))
 
     sys.path.insert(0, str(ROOT))
     from api.banner import render_banner
-    _lab = not args.challenge
-    _runtime = "Local dev via run.py (hot-reload)" if _lab else "Local via run.py (challenge face)"
+    _runtime = "Local dev via run.py --lab (hot-reload)" if args.lab else "Local via run.py (challenge face)"
     print(render_banner(
-        _lab, env.get("VF_HARDENED", "0") == "1", _runtime,
+        args.lab, env.get("VF_HARDENED", "0") == "1", _runtime,
         "http://localhost:%d" % WEB_PORT, "http://localhost:%d" % API_PORT, "Ctrl-C"), flush=True)
 
     flags = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WIN else {"start_new_session": True}

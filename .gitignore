@@ -42,6 +42,8 @@ venv/
 /uploads/
 /scoring/data/
 *.internal.md
+# Answer key + test harness - maintainer-only; withheld from the public repo
+/ground-truth/
 /tests/
 /tools/verify.py
 /requirements-dev.txt

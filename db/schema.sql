@@ -1,4 +1,4 @@
--- VulnForge database schema - SQLite (dev).
+-- Prolane database schema - SQLite (dev).
 -- When Docker integration is added at v1, a Postgres version replaces this.
 -- Application code is DB-agnostic; only this file and seed.sql change.
 --

@@ -23,7 +23,7 @@ services:
       JWT_SECRET: summer2023
       JWT_ISSUER: prolane-api
       WEB_ORIGIN: http://localhost:8082
-      VF_LAB: "1"
+      VF_LAB: "0"
       VF_HARDENED: "0"
       PROLANE_RUNTIME: docker
     ports:
@@ -46,7 +46,7 @@ services:
       SESSION_SECRET: fake-session-secret-for-training-only
       JWT_SECRET: summer2023
       JWT_ISSUER: prolane-api
-      VF_LAB: "1"
+      VF_LAB: "0"
     ports:
       - "127.0.0.1:8082:8082"
     depends_on:

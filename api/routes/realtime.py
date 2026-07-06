@@ -9,19 +9,6 @@ router = APIRouter()
 
 WS_UNAUTHORIZED = 4401
 
-try:
-    from scoring.store import record_solve as _record_solve
-except Exception:
-    _record_solve = None
-
-
-def _solve(vuln_id: str) -> None:
-    if config.VF_SCORING and _record_solve is not None:
-        try:
-            _record_solve(vuln_id, {"surface": "ws"})
-        except Exception:
-            pass
-
 
 async def ws_authenticate(token: str) -> dict | None:
     try:
@@ -89,15 +76,11 @@ async def activity(websocket: WebSocket, token: str = Query("")):
                     if row is None:
                         await websocket.send_json({"type": "error", "detail": "not_found"})
                     else:
-                        if row["org_id"] != user["org_id"]:
-                            _solve("WS-BOLA-001")
                         await websocket.send_json({"type": "task", "task": task_dict(row)})
             elif action == "get_audit_log":
                 if secure and user["role"] not in ("admin", "owner") and not user["is_super_admin"]:
                     await websocket.send_json({"type": "error", "detail": "forbidden"})
                 else:
-                    if not secure and user["role"] not in ("admin", "owner") and not user["is_super_admin"]:
-                        _solve("WS-BFLA-001")
                     await websocket.send_json({"type": "audit_log",
                                                "entries": await fetch_audit_log(user["org_id"])})
             elif action == "ping":
