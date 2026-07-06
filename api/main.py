@@ -51,6 +51,7 @@ from .routes.vulns.cmdi import router as cmdi_router
 from .routes.vulns.pathtraversal import router as pathtraversal_router
 from .routes.vulns.cors import router as cors_router
 from .routes.vulns.bruteforce import router as bruteforce_router
+from .routes.graphql_api import router as graphql_router
 
 
 def _print_startup_banner() -> None:
@@ -152,3 +153,4 @@ app.include_router(cmdi_router)
 app.include_router(pathtraversal_router)
 app.include_router(cors_router)
 app.include_router(bruteforce_router)
+app.include_router(graphql_router)

@@ -46,3 +46,35 @@ async def search_projects(
     async with db.execute(sql) as cur:
         rows = await cur.fetchall()
     return {"results": [present(r) for r in rows]}
+
+
+@router.get("/api/reporting/task-summary")
+async def task_summary(
+    request: Request,
+    user: dict = Depends(require_auth),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    org_id = user["org_id"]
+    async with db.execute(
+        "SELECT report_group_by FROM organizations WHERE id = ?", (org_id,)
+    ) as cur:
+        row = await cur.fetchone()
+    group_by = row["report_group_by"] if row and row["report_group_by"] else "status"
+
+    if hardened(request):
+        col = group_by if group_by in ("status", "priority", "assignee_id") else "status"
+        async with db.execute(
+            f"SELECT {col} AS segment, COUNT(*) AS total FROM tasks "
+            f"WHERE org_id = ? AND deleted_at IS NULL GROUP BY {col}",
+            (org_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+    else:
+        query = (
+            f"SELECT {group_by} AS segment, COUNT(*) AS total FROM tasks "
+            f"WHERE org_id = {org_id} AND deleted_at IS NULL GROUP BY {group_by}"
+        )
+        async with db.execute(query) as cur:
+            rows = await cur.fetchall()
+
+    return {"summary": [{"segment": r["segment"], "total": r["total"]} for r in rows]}

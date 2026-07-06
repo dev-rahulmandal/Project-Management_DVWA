@@ -8,3 +8,4 @@ python-dotenv>=1.0.0
 httpx>=0.27.0          # server-side fetch for the link-preview feature (API-SSRF-001)
 jinja2>=3.1.0          # notification template rendering (API-SSTI-001)
 python-multipart>=0.0.9  # multipart form parsing for file uploads
+strawberry-graphql[fastapi]>=0.320.0  # GraphQL API origin

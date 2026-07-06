@@ -45,7 +45,13 @@ def present_invite(row) -> dict:
 
 
 def present_org(row) -> dict:
-    return {"id": row["id"], "name": row["name"], "slug": row["slug"], "planTier": row["plan_tier"]}
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "slug": row["slug"],
+        "planTier": row["plan_tier"],
+        "reportGroupBy": row["report_group_by"],
+    }
 
 
 @router.get("/api/org")
@@ -63,6 +69,7 @@ async def get_org(
 class OrgUpdate(BaseModel):
     name: str | None = None
     planTier: str | None = None
+    reportGroupBy: str | None = None
 
 
 @router.patch("/api/org")
@@ -81,6 +88,8 @@ async def update_org(
         if body.planTier not in ("starter", "pro", "enterprise"):
             raise HTTPException(status_code=400, detail="invalid_plan")
         updates["plan_tier"] = body.planTier
+    if body.reportGroupBy is not None:
+        updates["report_group_by"] = body.reportGroupBy
     if updates:
         sets = ", ".join(f"{k} = ?" for k in updates)
         await db.execute(

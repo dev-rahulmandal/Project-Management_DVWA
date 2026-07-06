@@ -2,13 +2,20 @@ import csv
 import io
 
 import aiosqlite
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 
 from ..auth import require_auth
 from ..db import get_db
+from ..hardening import hardened
 
 router = APIRouter()
+
+
+def _csv_guard(value):
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
 
 
 @router.get("/api/activity")
@@ -48,6 +55,7 @@ async def activity_feed(
 
 @router.get("/api/export/tasks")
 async def export_tasks(
+    request: Request,
     user: dict = Depends(require_auth),
     db: aiosqlite.Connection = Depends(get_db),
     format: str = "csv",
@@ -75,8 +83,9 @@ async def export_tasks(
     cols = ["id", "project", "title", "status", "priority", "dueDate", "assignee"]
     w = csv.DictWriter(buf, fieldnames=cols)
     w.writeheader()
+    secure = hardened(request)
     for rec in records:
-        w.writerow(rec)
+        w.writerow({k: _csv_guard(v) for k, v in rec.items()} if secure else rec)
     return Response(
         content=buf.getvalue(), media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="tasks.csv"'})

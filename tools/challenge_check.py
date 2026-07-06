@@ -25,7 +25,7 @@ from jose import jwt
 ROOT = Path(__file__).resolve().parents[1]
 PORT = 8091
 ORIGIN = f"http://localhost:{PORT}"
-DB = "vulnforge_challenge_check.db"
+DB = "prolane_challenge_check.db"
 
 
 def _forge(sub: int) -> dict:

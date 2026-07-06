@@ -30,6 +30,8 @@ export function CommandPalette() {
   const { apiFetch, ready } = useApi()
   const [open, setOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [tasksLoaded, setTasksLoaded] = useState(false)
+  const [query, setQuery] = useState('')
   const [projects, setProjects] = useState<Item[]>([])
   const [tasks, setTasks] = useState<Item[]>([])
   const [people, setPeople] = useState<Item[]>([])
@@ -62,6 +64,18 @@ export function CommandPalette() {
           )
       })
       .catch(() => {})
+    apiFetch('/api/members')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.members)
+          setPeople(d.members.map((m: any) => ({ id: `m${m.id}`, label: m.name, sub: m.email, href: '/members' })))
+      })
+      .catch(() => {})
+  }, [open, loaded, ready, apiFetch])
+
+  useEffect(() => {
+    if (!open || tasksLoaded || !ready || !query) return
+    setTasksLoaded(true)
     apiFetch('/api/tasks?limit=200')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -71,14 +85,7 @@ export function CommandPalette() {
           )
       })
       .catch(() => {})
-    apiFetch('/api/members')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.members)
-          setPeople(d.members.map((m: any) => ({ id: `m${m.id}`, label: m.name, sub: m.email, href: '/members' })))
-      })
-      .catch(() => {})
-  }, [open, loaded, ready, apiFetch])
+  }, [open, tasksLoaded, ready, query, apiFetch])
 
   const go = useCallback(
     (href: string) => {
@@ -100,6 +107,8 @@ export function CommandPalette() {
               <IconSearch size={16} />
               <Command.Input
                 autoFocus
+                value={query}
+                onValueChange={setQuery}
                 placeholder="Search projects, tasks, people… or jump to a page"
                 className="h-12 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />

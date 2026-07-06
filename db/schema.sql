@@ -1,5 +1,5 @@
 -- Prolane database schema - SQLite (dev).
--- When Docker integration is added at v1, a Postgres version replaces this.
+-- SQLite is the dev and Docker backing store; a Postgres version may replace it at v1.
 -- Application code is DB-agnostic; only this file and seed.sql change.
 --
 -- Note: SQLite foreign keys are OFF by default.
@@ -10,7 +10,8 @@ CREATE TABLE organizations (
   name           TEXT NOT NULL,
   slug           TEXT NOT NULL UNIQUE,
   plan_tier      TEXT NOT NULL DEFAULT 'starter',  -- 'starter' | 'pro' | 'enterprise'
-  credit_balance INTEGER NOT NULL DEFAULT 0        -- billing credits
+  credit_balance INTEGER NOT NULL DEFAULT 0,       -- billing credits
+  report_group_by TEXT NOT NULL DEFAULT 'status'   -- default grouping for the task summary report
 );
 
 CREATE TABLE users (

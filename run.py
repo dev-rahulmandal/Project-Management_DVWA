@@ -3,6 +3,7 @@
 Usage:
     python run.py               start the challenge face (realistic target, no answer-key signal)
     python run.py --lab         start the lab face (answer-key signals, secure twins, /docs open)
+    python run.py --reseed      delete the local database first, then start (fresh seeded data)
 
 On first run it installs the Python and web dependencies and seeds the local
 .env files from the checked-in examples. Ctrl-C stops both servers.
@@ -31,7 +32,7 @@ WEB = ROOT / "web"
 REQ = ROOT / "api" / "requirements.txt"
 API_PORT, WEB_PORT = 8081, 8082
 IS_WIN = os.name == "nt"
-CANARY = ["uvicorn", "fastapi", "jose", "jwt", "bcrypt", "aiosqlite", "httpx", "jinja2", "dotenv", "multipart"]
+CANARY = ["uvicorn", "fastapi", "jose", "jwt", "bcrypt", "aiosqlite", "httpx", "jinja2", "dotenv", "multipart", "strawberry"]
 
 
 def die(msg: str) -> None:
@@ -140,10 +141,41 @@ def free_port(port: int) -> None:
         pass
 
 
+def _db_path() -> Path:
+    """The database file the API will use (mirrors api/config.py: ROOT / DATABASE_PATH)."""
+    name = "prolane.db"
+    env = ROOT / "api" / ".env"
+    if env.exists():
+        for line in env.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if s.startswith("DATABASE_PATH=") and not s.startswith("#"):
+                name = s.split("=", 1)[1].strip().strip('"').strip("'")
+                break
+    return ROOT / name
+
+
+def reseed_db() -> None:
+    db = _db_path()
+    removed = []
+    for p in (db, db.with_name(db.name + "-wal"), db.with_name(db.name + "-shm")):
+        if p.exists():
+            try:
+                p.unlink()
+                removed.append(p.name)
+            except OSError as exc:
+                die("could not delete %s - stop any server still holding it, then retry: %s" % (p.name, exc))
+    if removed:
+        print("[prolane] --reseed: removed %s; a fresh database will be seeded on start." % ", ".join(removed))
+    else:
+        print("[prolane] --reseed: no existing database at %s; a fresh one will be seeded." % db.name)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Prolane launcher")
     ap.add_argument("--lab", "--dev", dest="lab", action="store_true",
                     help="run the lab face (VF_LAB=1: answer-key signals, secure twins, /docs). Default is the challenge face.")
+    ap.add_argument("--reseed", "--fresh", dest="reseed", action="store_true",
+                    help="delete the local database before starting so it is re-seeded fresh (wipes any test state).")
     args = ap.parse_args()
 
     api_py = ensure_python()
@@ -158,6 +190,9 @@ def main() -> None:
     print("[prolane] freeing ports %d/%d if in use..." % (API_PORT, WEB_PORT))
     free_port(API_PORT)
     free_port(WEB_PORT)
+
+    if args.reseed:
+        reseed_db()
 
     api_cmd = [api_py, "-m", "uvicorn", "api.main:app", "--port", str(API_PORT)]
     if args.lab:

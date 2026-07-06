@@ -19,7 +19,7 @@ services:
     image: prolane-api
     container_name: prolane-api
     environment:
-      DATABASE_PATH: vulnforge.db
+      DATABASE_PATH: prolane.db
       JWT_SECRET: summer2023
       JWT_ISSUER: prolane-api
       WEB_ORIGIN: http://localhost:8082

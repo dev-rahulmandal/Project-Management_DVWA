@@ -8,7 +8,7 @@ _ROOT = Path(__file__).parent.parent
 
 
 class _Config:
-    DB_PATH: Path = _ROOT / os.getenv("DATABASE_PATH", "vulnforge.db")
+    DB_PATH: Path = _ROOT / os.getenv("DATABASE_PATH", "prolane.db")
 
     JWT_SECRET: str = os.getenv("JWT_SECRET", "summer2023")
     JWT_ISSUER: str = os.getenv("JWT_ISSUER", "prolane-api")
