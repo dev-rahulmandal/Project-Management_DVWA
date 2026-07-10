@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from ...config import config
 from ...hardening import hardened
 
 router = APIRouter()
 
-_ALLOWED = {"http://localhost:8082"}
+# Hardened CORS twin allows exactly the configured web origins (no hardcoded
+# loopback); the vulnerable branch still reflects any Origin.
+_ALLOWED = set(config.WEB_ORIGINS)
 
 
 def _payload() -> dict:

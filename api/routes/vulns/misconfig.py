@@ -2,7 +2,7 @@ import os
 import sys
 
 import aiosqlite
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ...auth import get_current_user, require_admin
@@ -22,7 +22,9 @@ async def debug_config(
     db: aiosqlite.Connection = Depends(get_db),
 ):
     if hardened(request):
-        user = await get_current_user(credentials=credentials, db=db)
+        if credentials is None:
+            raise HTTPException(status_code=401, detail="not_authenticated")
+        user = await get_current_user(request, credentials=credentials, db=db)
         user = await require_admin(user=user)
         return {
             "jwtIssuer": config.JWT_ISSUER,

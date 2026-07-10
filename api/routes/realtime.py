@@ -19,9 +19,13 @@ async def ws_authenticate(token: str) -> dict | None:
     uid = payload.get("sub")
     if not isinstance(uid, (str, int)):
         return None
+    try:
+        uid = int(uid)
+    except (ValueError, TypeError):
+        return None
     async with aiosqlite.connect(config.DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
-        async with conn.execute("SELECT * FROM users WHERE id = ?", (int(uid),)) as cur:
+        async with conn.execute("SELECT * FROM users WHERE id = ?", (uid,)) as cur:
             row = await cur.fetchone()
     if row is None or not row["is_active"]:
         return None
@@ -63,10 +67,22 @@ async def activity(websocket: WebSocket, token: str = Query("")):
     await websocket.send_json({"type": "connected", "userId": user["id"], "orgId": user["org_id"]})
     try:
         while True:
-            msg = await websocket.receive_json()
+            try:
+                msg = await websocket.receive_json()
+            except (ValueError, TypeError):
+                await websocket.send_json({"type": "error", "detail": "invalid_message"})
+                continue
+            if not isinstance(msg, dict):
+                await websocket.send_json({"type": "error", "detail": "invalid_message"})
+                continue
             action = msg.get("type")
             if action == "fetch_task":
-                row = await fetch_task(int(msg.get("taskId", 0)))
+                try:
+                    task_id = int(msg.get("taskId", 0))
+                except (ValueError, TypeError):
+                    await websocket.send_json({"type": "error", "detail": "invalid_task_id"})
+                    continue
+                row = await fetch_task(task_id)
                 if secure:
                     if row is None or row["org_id"] != user["org_id"]:
                         await websocket.send_json({"type": "error", "detail": "forbidden"})

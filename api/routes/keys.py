@@ -115,10 +115,8 @@ async def pat_create_project(
     scopes = user.get("scopes", [])
     if hardened(request):
         allowed = "projects:write" in scopes
-        scope_confused = False
     else:
         allowed = any(s.startswith("projects") for s in scopes)
-        scope_confused = allowed and "projects:write" not in scopes
     if not allowed:
         raise HTTPException(status_code=403, detail="insufficient_scope")
     name = body.name.strip()

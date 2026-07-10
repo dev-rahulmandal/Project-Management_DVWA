@@ -2,12 +2,13 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from ..auth import require_admin, require_auth
 from ..config import config
 from ..db import get_db
+from ..hardening import hardened
 from .billing import PLANS
 
 router = APIRouter()
@@ -74,6 +75,7 @@ class OrgUpdate(BaseModel):
 
 @router.patch("/api/org")
 async def update_org(
+    request: Request,
     body: OrgUpdate,
     user: dict = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
@@ -87,6 +89,16 @@ async def update_org(
     if body.planTier is not None:
         if body.planTier not in ("starter", "pro", "enterprise"):
             raise HTTPException(status_code=400, detail="invalid_plan")
+        # API-BIZ-PLANUPGRADE-001: the vulnerable branch writes plan_tier directly
+        # (free self-upgrade). The hardened twin rejects any tier change here - plan
+        # changes must go through the billing order flow.
+        if hardened(request):
+            async with db.execute(
+                "SELECT plan_tier FROM organizations WHERE id = ?", (user["org_id"],)
+            ) as cur:
+                current = (await cur.fetchone())["plan_tier"]
+            if body.planTier != current:
+                raise HTTPException(status_code=403, detail="plan_change_requires_billing")
         updates["plan_tier"] = body.planTier
     if body.reportGroupBy is not None:
         updates["report_group_by"] = body.reportGroupBy
@@ -121,12 +133,25 @@ async def delete_org(
             except OSError:
                 pass
 
+    # FK-safe cascade: every child row is removed before the parent it references
+    # (foreign_keys=ON with no ON DELETE CASCADE, so order matters). Covers all
+    # org-scoped tables; oauth_codes/task_labels have no org_id so they scope via
+    # their parent. Global tables (coupons, oauth_clients) are not org-owned.
     for stmt in (
+        "DELETE FROM task_labels WHERE task_id IN (SELECT id FROM tasks WHERE org_id = ?)",
         "DELETE FROM comments WHERE org_id = ?",
         "DELETE FROM attachments WHERE org_id = ?",
+        "DELETE FROM oauth_codes WHERE user_id IN (SELECT id FROM users WHERE org_id = ?)",
+        "DELETE FROM api_keys WHERE org_id = ?",
+        "DELETE FROM orders WHERE org_id = ?",
+        "DELETE FROM webhooks WHERE org_id = ?",
+        "DELETE FROM webhook_deliveries WHERE org_id = ?",
+        "DELETE FROM notifications WHERE org_id = ?",
+        "DELETE FROM saved_views WHERE org_id = ?",
         "DELETE FROM tasks WHERE org_id = ?",
-        "DELETE FROM projects WHERE org_id = ?",
         "DELETE FROM invitations WHERE org_id = ?",
+        "DELETE FROM projects WHERE org_id = ?",
+        "DELETE FROM labels WHERE org_id = ?",
         "DELETE FROM audit_logs WHERE org_id = ?",
         "DELETE FROM users WHERE org_id = ?",
         "DELETE FROM organizations WHERE id = ?",

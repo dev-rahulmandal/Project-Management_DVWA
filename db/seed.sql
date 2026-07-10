@@ -53,7 +53,7 @@ INSERT INTO oauth_clients (client_id, client_secret, name, redirect_uris, logo_u
   ('demo-integration', 'cs_demo_3f9a1c7b', 'Demo Integration',
    'https://demo.example/callback http://localhost:9000/cb', NULL);
 
--- A pending invitation (Acme), so the members admin shows realistic data.
+-- A pending invitation (Northwind), so the members admin shows realistic data.
 INSERT INTO invitations (org_id, email, role, token, expires_at) VALUES
   (1, 'newbie@northwind.test', 'member', 'inv_seed_northwind_pending_001', '2031-01-01T00:00:00');
 
@@ -61,7 +61,7 @@ INSERT INTO invitations (org_id, email, role, token, expires_at) VALUES
 UPDATE tasks SET due_date = '2026-07-15' WHERE id = 2;
 UPDATE tasks SET due_date = '2026-06-30' WHERE id = 3;
 
--- Seeded task comments (Acme task 1).
+-- Seeded task comments (Northwind task 1).
 INSERT INTO comments (task_id, org_id, author_id, body) VALUES
   (1, 1, 1, 'Mockups look great - ready to hand off to engineering.'),
   (1, 1, 2, 'One tweak on the hero spacing and we are good.');

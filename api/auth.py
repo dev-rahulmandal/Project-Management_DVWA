@@ -65,8 +65,12 @@ async def get_current_user(
     user_id = payload.get("sub")
     if not isinstance(user_id, (str, int)):
         raise HTTPException(status_code=401, detail="invalid_token")
+    try:
+        user_id = int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="invalid_token")
 
-    async with db.execute("SELECT * FROM users WHERE id = ?", (int(user_id),)) as cur:
+    async with db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cur:
         row = await cur.fetchone()
 
     if row is None:

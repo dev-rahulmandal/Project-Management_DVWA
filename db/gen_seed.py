@@ -111,8 +111,8 @@ out.append(rows("organizations", ["id", "name", "slug", "plan_tier", "credit_bal
 uid = 6
 users = []                       # (id, org_id, role)
 org_users = {o: [] for o in ALL_ORGS}
-org_users[1] = [1, 2, 5]         # existing acme
-org_users[2] = [3, 4]            # existing globex
+org_users[1] = [1, 2, 5]         # existing northwind
+org_users[2] = [3, 4]            # existing bluepeak
 user_rows = []
 plan_extra = {1: 4, 2: 4}        # extra users for fixture orgs
 for o in ALL_ORGS:
@@ -168,11 +168,6 @@ out.append(rows("projects",
 tid = 7
 task_rows = []
 tasks_by_org = {o: [] for o in ALL_ORGS}
-proj_org = {1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2}
-for o in ALL_ORGS:
-    for p in projects[o]:
-        if p >= 7:
-            proj_org[p] = o
 for o in ALL_ORGS:
     for p in projects[o]:
         if p <= 6:

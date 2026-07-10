@@ -70,7 +70,7 @@ export default function ProjectsPage() {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const shown = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  useEffect(() => { setPage(1) }, [q, statusFilter, sort])
+  useEffect(() => { setPage(1) }, [q, statusFilter, sort, view])
 
   async function createProject(e: React.FormEvent) {
     e.preventDefault()

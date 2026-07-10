@@ -42,8 +42,8 @@ async def _fetch_preview(url: str) -> dict:
 def _host_is_blocked(host: str) -> bool:
     try:
         infos = socket.getaddrinfo(host, None)
-    except socket.gaierror:
-        return True
+    except (socket.gaierror, UnicodeError):
+        return True  # unresolvable or IDNA-invalid host: treat as blocked (fail closed)
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
         if (ip.is_private or ip.is_loopback or ip.is_link_local

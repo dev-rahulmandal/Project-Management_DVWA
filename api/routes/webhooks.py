@@ -170,7 +170,9 @@ async def inbound_billing(
     try:
         payload = json.loads(body)
         delivery_id = str(payload["id"])
-    except (json.JSONDecodeError, KeyError):
+        payload["orgId"] = int(payload["orgId"])
+        payload["credits"] = int(payload.get("credits", 0))
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
         raise HTTPException(status_code=400, detail="bad_payload")
 
     if secure:

@@ -4,7 +4,7 @@ import {
   createContext, useCallback, useContext, useEffect, useState,
 } from 'react'
 
-const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? 'http://localhost:8081'
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? 'http://api.prolane.test:8081'
 
 interface ApiContextValue {
   token: string | null

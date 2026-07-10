@@ -37,7 +37,7 @@ async def v1_profile(
     db: aiosqlite.Connection = Depends(get_db),
 ):
     if hardened(request):
-        user = await get_current_user(credentials=credentials, db=db)
+        user = await get_current_user(request, credentials=credentials, db=db)
         return {"user": _present(await _user_by_id(db, user["id"]))}
 
     try:

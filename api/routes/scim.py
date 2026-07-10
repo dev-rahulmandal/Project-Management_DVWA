@@ -22,7 +22,11 @@ ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error"
 def require_scim_token(
     credentials: HTTPAuthorizationCredentials = Security(_bearer),
 ) -> int:
-    if not secrets.compare_digest(credentials.credentials, config.SCIM_TOKEN):
+    try:
+        ok = secrets.compare_digest(credentials.credentials, config.SCIM_TOKEN)
+    except TypeError:
+        ok = False  # non-ASCII token bytes: reject cleanly, do not crash
+    if not ok:
         raise HTTPException(status_code=401, detail="invalid_provisioning_token")
     return config.SCIM_ORG_ID
 

@@ -46,6 +46,7 @@ venv/
 /ground-truth/
 /tests/
 /tools/verify.py
+/tools/challenge_check.py
 /requirements-dev.txt
 
 # Pre-commit / git hooks (local tooling; never pushed)
